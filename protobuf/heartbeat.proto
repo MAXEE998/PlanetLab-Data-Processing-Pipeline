@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+message SendEntry {
+	uint32 to = 1;
+	uint64 seq = 2;
+	uint64 t_sent = 3;
+}
+
+message ReceiveEntry {
+	uint32 origin = 1;
+	uint64 seq = 2;
+	uint64 t_sent = 3;
+	uint64 t_received = 4;
+	uint32 hops = 5;
+}
+
+message SendLog {
+	repeated SendEntry entries = 1;
+}
+
+message ReceiveLog {
+	repeated ReceiveEntry entries = 1;
+}
