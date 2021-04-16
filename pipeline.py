@@ -15,27 +15,25 @@ class Pipeline:
         self.output_folder = output_folder
         self.data_path = data_path
         self.secondary_dir_path_template = output_folder \
-                                           + ("sender-{}/" if log_type == "sent" else "receiver-{}/")
+                                           + ("sender-{nodeOne}/" if log_type == "sent" else "receiver-{nodeOne}/")
         self.ternary_dir_path_template = self.secondary_dir_path_template \
-                                         + ("receiver-{}/" if log_type == "sent" else "sender-{}/")
+                                         + ("receiver-{nodeTwo}/" if log_type == "sent" else "sender-{nodeTwo}/")
         self.chunk_path_template = self.ternary_dir_path_template \
                                    + log_type \
-                                   + "_{}_{}_{}-{}.pbf.gz"  # nodeOne, nodeTwo, start timestamp, end timestamp
+                                   + "_{nodeOne}_{nodeTwo}_{start}-{end}.pbf.gz"
 
     @staticmethod
     def __serialize_sent_log(data):
         # <site> <numseq> <timestamp send>
         send_log = hb.SendLog()
         for e in data:
-            try:
-                send_log.entries.add(
-                    to=e[0], seq=e[1], t_sent=e[2]
-                )
-            except IndexError:
-                print(f"**entry: {e} is ill-formatted, replaced with all 0", file=sys.stderr)
-                send_log.entries.add(
-                    to=0, seq=0, t_sent=0
-                )
+            if len(e) != 3:
+                print(f"**entry: {e} is ill-formatted, fill missing fields with -1", file=sys.stderr)
+                while len(e) != 3:
+                    e.append(-1)
+            send_log.entries.add(
+                to=e[0], seq=e[1], t_sent=e[2]
+            )
         return send_log.SerializeToString()
 
     @staticmethod
@@ -43,36 +41,40 @@ class Pipeline:
         # <site> <numseq> <timestamp send> <timestamp receive> <hops>
         recv_log = hb.ReceiveLog()
         for e in data:
-            try:
-                recv_log.entries.add(
-                    origin=e[0], seq=e[1], t_sent=e[2], t_received=e[3], hops=e[4]
-                )
-            except IndexError:
-                print(f"**entry: {e} is ill-formatted, replaced with all 0", file=sys.stderr)
-                recv_log.entries.add(
-                    origin=0, seq=0, t_sent=0, t_received=0, hops=0
-                )
+            if len(e) != 5:
+                print(f"**entry: {e} is ill-formatted, fill missing fields with with -1", file=sys.stderr)
+                while len(e) != 5:
+                    e.append(-1)
+            recv_log.entries.add(
+                origin=e[0], seq=e[1], t_sent=e[2], t_received=e[3], hops=e[4]
+            )
+
         return recv_log.SerializeToString()
 
     @staticmethod
     def __compress(data):
         return zlib.compress(data)
 
+    def __is_entry_valid(self, entry):
+        valid_length = 3 if self.log_type == "sent" else 5
+        if len(entry) != valid_length:
+            return False
+        return True
+
     def __generate_chunk_path(self, data, node1, node2):
-        start_timestamp = data[0][2] if self.log_type == 'sent' else data[0][3]
-        end_timestamp = 0
-        try:
-            end_timestamp = data[-1][2] if self.log_type == 'sent' else data[-1][3]
-        except IndexError:
-            end_timestamp = data[-2][2] if self.log_type == 'sent' else data[-2][3]
-        return self.chunk_path_template.format(
-            node1,
-            node2,
-            node1,
-            node2,
-            start_timestamp,
-            end_timestamp
-        )
+        valid_start = None
+        valid_end = None
+        for i in range(0, len(data)):
+            if self.__is_entry_valid(data[i]):
+                valid_start = data[i]
+                break
+        for i in range(-1, -len(data) - 1, -1):
+            if self.__is_entry_valid(data[i]):
+                valid_end = data[i]
+                break
+        start_timestamp = valid_start[2] if self.log_type == 'sent' else valid_start[3]
+        end_timestamp = valid_end[2] if self.log_type == 'sent' else valid_end[3]
+        return self.chunk_path_template.format(nodeOne=node1, nodeTwo=node2, start=start_timestamp, end=end_timestamp)
 
     def produce_single_chunk(self, data, node1, node2):
         chunk_path = self.__generate_chunk_path(data, node1, node2)
@@ -97,7 +99,8 @@ class Pipeline:
                     line = line.split(" ")
                     line = list(map(int, line))
                 except ValueError:
-                    print(f"{self.log_type}-{node1} line: {line} is ill formatted.", file=sys.stderr)
+                    print(f"**{self.log_type}-{node1} line: {line} is ill formatted.", file=sys.stderr)
+                    line = ["-1" if i == '' else i for i in line]
                     continue
                 if line[0] == node2:
                     data.append(line)
@@ -117,7 +120,7 @@ class Pipeline:
         nodes.remove(node)
         processor = self.process_node_to_node
         for node2 in nodes:
-            ternary_folder_path = self.ternary_dir_path_template.format(node, node2)
+            ternary_folder_path = self.ternary_dir_path_template.format(nodeOne=node, nodeTwo=node2)
             os.makedirs(ternary_folder_path, exist_ok=True)
             p = mp.Process(target=processor, args=(filename, node, node2))
             processes.append(p)
@@ -130,7 +133,7 @@ class Pipeline:
         if multiprocessing:
             processes = []
             for node in self.nodes:
-                secondary_folder_path = self.secondary_dir_path_template.format(node)
+                secondary_folder_path = self.secondary_dir_path_template.format(nodeOne=node)
                 os.makedirs(secondary_folder_path, exist_ok=True)
                 p = mp.Process(target=self.process_single_log, args=(node, "placeholder"))
                 processes.append(p)
@@ -139,7 +142,7 @@ class Pipeline:
             [p.join() for p in processes]
         else:
             for node in self.nodes:
-                secondary_folder_path = self.secondary_dir_path_template.format(node)
+                secondary_folder_path = self.secondary_dir_path_template.format(nodeOne=node)
                 os.makedirs(secondary_folder_path, exist_ok=True)
                 self.process_single_log(node)
         print("--------DONE--------")
