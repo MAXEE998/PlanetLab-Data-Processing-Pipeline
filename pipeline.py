@@ -8,7 +8,7 @@ from protobuf import heartbeat_pb2 as hb
 
 class Pipeline:
 
-    def __init__(self, log_type, nodes, output_folder, chunk_size=1000000, data_path="../data/"):
+    def __init__(self, log_type, nodes, output_folder, chunk_size=1000000, data_path="../data/", index="seq"):
         self.log_type = log_type
         self.nodes = nodes
         self.chunk_size = chunk_size
@@ -21,6 +21,7 @@ class Pipeline:
         self.chunk_path_template = self.ternary_dir_path_template \
                                    + log_type \
                                    + "_{nodeOne}_{nodeTwo}_{start}-{end}.pbf.gz"
+        self.index = index
 
     @staticmethod
     def __serialize_sent_log(data):
@@ -62,19 +63,24 @@ class Pipeline:
         return True
 
     def __generate_chunk_path(self, data, node1, node2):
-        valid_start = None
-        valid_end = None
-        for i in range(0, len(data)):
-            if self.__is_entry_valid(data[i]):
-                valid_start = data[i]
-                break
-        for i in range(-1, -len(data) - 1, -1):
-            if self.__is_entry_valid(data[i]):
-                valid_end = data[i]
-                break
-        start_timestamp = valid_start[2] if self.log_type == 'sent' else valid_start[3]
-        end_timestamp = valid_end[2] if self.log_type == 'sent' else valid_end[3]
-        return self.chunk_path_template.format(nodeOne=node1, nodeTwo=node2, start=start_timestamp, end=end_timestamp)
+        valid_start = data[0]
+        valid_end = data[-1]
+
+        if self.index == "timestamp":
+            for i in range(0, len(data)):
+                if self.__is_entry_valid(data[i]):
+                    valid_start = data[i]
+                    break
+            for i in range(-1, -len(data) - 1, -1):
+                if self.__is_entry_valid(data[i]):
+                    valid_end = data[i]
+                    break
+            start_index = valid_start[2] if self.log_type == 'sent' else valid_start[3]
+            end_index = valid_end[2] if self.log_type == 'sent' else valid_end[3]
+        else:
+            start_index = valid_start[1]
+            end_index = valid_end[1]
+        return self.chunk_path_template.format(nodeOne=node1, nodeTwo=node2, start=start_index, end=end_index)
 
     def produce_single_chunk(self, data, node1, node2):
         chunk_path = self.__generate_chunk_path(data, node1, node2)

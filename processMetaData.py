@@ -11,12 +11,12 @@ class MetaDataProcessor:
     @staticmethod
     def splitter(t):
         # result should look like
-        # [type, node1, node2, (start_timestamp, end_timestamp)]
+        # [type, node1, node2, (start_index, end_index)]
         s = t[0]
         s = s.split('.')[0]
         s = s.split('_')
         s[-1] = tuple(s[-1].split('-'))
-        return (s, t[1])
+        return s, t[1]
 
     @staticmethod
     def process_log_level1(raw_level1):
@@ -42,9 +42,9 @@ class MetaDataProcessor:
     @staticmethod
     def process_log_level3(raw_level3):
         processed = dict()
-        # determine the minimum and maximum of timestamp
-        processed["min_timestamp"] = int(raw_level3[0][0][3][0])
-        processed["max_timestamp"] = int(raw_level3[-1][0][3][1])
+        # determine the minimum and maximum of index
+        processed["min_index"] = int(raw_level3[0][0][3][0])
+        processed["max_index"] = int(raw_level3[-1][0][3][1])
         mapping = []
         for p in raw_level3:
             mapping.append((p[0][-1][0], p[1]))

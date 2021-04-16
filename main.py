@@ -8,6 +8,7 @@ import time
 from gapi import build_gapi_service
 from pipeline import Pipeline
 from uploader import Uploader
+from processMetaData import MetaDataProcessor
 
 
 # Global Objects
@@ -93,7 +94,9 @@ def main():
         service = build_gapi_service()
         folder = config["Output"].get("UploadFolder")
         uploader = Uploader(service, folder, google_directory_id)
-        uploader.start()
+        meta_path = uploader.start()
+        processor = MetaDataProcessor(meta_path)
+        processor.process()
 
 
 if __name__ == "__main__":

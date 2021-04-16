@@ -3,17 +3,19 @@ import multiprocessing as mp
 import os
 import pathlib
 import queue
+import sys
 
 from googleapiclient.http import MediaFileUpload
 
 
 class Uploader:
 
-    def __init__(self, service, root_path, google_drive_root):
+    def __init__(self, service, root_path, google_drive_root, include_folderID_in_meta=False):
         self.service = service
         self.root_path = root_path.replace(pathlib.os.sep, '/')
         self.google_drive_root = google_drive_root
         self.mapping = {google_drive_root[0]: google_drive_root[1]}
+        self.include_folderID = include_folderID_in_meta
 
     def __create_directory(self, name, parent_name, indent):
         print(f"{' ' * indent * 4}| Creating folder {name} on {parent_name}...")
@@ -66,15 +68,15 @@ class Uploader:
             # file upload
             for file in walk[2]:
                 pool.apply_async(self.upload_file, args=(file, walk[0], current[1], mqueue),
-                                 error_callback=lambda e: print(e)
+                                 error_callback=lambda e: print(e, file=sys.stderr)
                                  )
-                # self.upload_file(file, walk[0], current[1], mqueue)
 
         pool.close()
         pool.join()
         print(f"{self.root_path} uploaded|")
         print("producing metadata...")
-
+        if not self.include_folderID:
+            self.mapping = dict()
         while True:
             try:
                 kv = mqueue.get(block=False)
@@ -84,7 +86,9 @@ class Uploader:
 
     def start(self):
         self.upload_recursive()
-        with open(f"../metadata/{self.root_path.split('/')[-1]}.json", 'w') as f:
+        meta_path = f"../metadata/{self.root_path.split('/')[-1]}.json"
+        with open(meta_path, 'w') as f:
             json.dump(self.mapping, f, indent=4)
 
         print("----Done----")
+        return meta_path
