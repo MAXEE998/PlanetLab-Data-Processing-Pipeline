@@ -66,7 +66,6 @@ def main():
     # read configuration file
     config = configparser.ConfigParser()
     config.read('app.ini')
-    config.read('app.ini')
     _, data_path, types, nodes, size, make_chunk, upload, google_directory_id = job_summary(config)
 
     if make_chunk:
