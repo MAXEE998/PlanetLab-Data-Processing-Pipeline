@@ -46,7 +46,9 @@ class Uploader:
 
     def upload_recursive(self):
         print(f"|Start uploading folder {self.root_path} to Google Drive...")
-        root_name = self.root_path.split('/')[-1]
+        root_name = self.root_path.split('/')
+        root_name.remove("")
+        root_name = root_name[-1]
         # format: (local_path, google_path, name)
         stack = [(self.root_path, self.google_drive_root[0]+'/'+root_name, root_name)]
         self.__create_directory(root_name, self.google_drive_root[0], 0)  # init

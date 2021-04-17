@@ -7,6 +7,8 @@ class MetaDataProcessor:
 
     def __init__(self, path):
         self.path = path.replace(pathlib.os.sep, '/')
+        self.global_max_index = 0
+        self.global_min_index = 0xffffffffffffffff
 
     @staticmethod
     def splitter(t):
@@ -18,33 +20,32 @@ class MetaDataProcessor:
         s[-1] = tuple(s[-1].split('-'))
         return s, t[1]
 
-    @staticmethod
-    def process_log_level1(raw_level1):
+    def process_log_level1(self, raw_level1):
         processed = dict()
         # separate by node 1
         start = 0
         for i in range(len(raw_level1)):
             if i == (len(raw_level1) - 1) or raw_level1[i][0][1] != raw_level1[i + 1][0][1]:
-                processed[int(raw_level1[i][0][1])] = MetaDataProcessor.process_log_level2(raw_level1[start:i + 1])
+                processed[int(raw_level1[i][0][1])] = self.process_log_level2(raw_level1[start:i + 1])
         return processed
 
-    @staticmethod
-    def process_log_level2(raw_level2):
+    def process_log_level2(self, raw_level2):
         processed = dict()
         # separate by node 2
         start = 0
         for i in range(len(raw_level2)):
             if i == (len(raw_level2) - 1) or raw_level2[i][0][2] != raw_level2[i + 1][0][2]:
-                processed[int(raw_level2[i][0][2])] = MetaDataProcessor.process_log_level3(raw_level2[start:i + 1])
+                processed[int(raw_level2[i][0][2])] = self.process_log_level3(raw_level2[start:i + 1])
                 start = i+1
         return processed
 
-    @staticmethod
-    def process_log_level3(raw_level3):
+    def process_log_level3(self, raw_level3):
         processed = dict()
         # determine the minimum and maximum of index
         processed["min_index"] = int(raw_level3[0][0][3][0])
         processed["max_index"] = int(raw_level3[-1][0][3][1])
+        self.global_max_index = max(self.global_max_index, processed["max_index"])
+        self.global_min_index = min(self.global_min_index, processed["min_index"])
         mapping = []
         for p in raw_level3:
             mapping.append((p[0][-1][0], p[1]))
@@ -69,6 +70,8 @@ class MetaDataProcessor:
         processed = dict()
         processed["emission"] = self.process_log_level1(raw[:watershed])
         processed["reception"] = self.process_log_level1(raw[watershed:])
+        processed["global_min_index"] = self.global_min_index
+        processed["global_max_index"] = self.global_max_index
 
         # generate output path
         processed_path = self.path.split('/')
@@ -79,6 +82,6 @@ class MetaDataProcessor:
         print(f"Done. Successfully output to {processed_path}")
 
 
-if __name__ == "__main__" :
+if __name__ == "__main__":
     processor = MetaDataProcessor(sys.argv[1])
     processor.process()

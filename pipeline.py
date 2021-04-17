@@ -66,15 +66,16 @@ class Pipeline:
         valid_start = data[0]
         valid_end = data[-1]
 
+        for i in range(0, len(data)):
+            if self.__is_entry_valid(data[i]):
+                valid_start = data[i]
+                break
+        for i in range(-1, -len(data) - 1, -1):
+            if self.__is_entry_valid(data[i]):
+                valid_end = data[i]
+                break
+
         if self.index == "timestamp":
-            for i in range(0, len(data)):
-                if self.__is_entry_valid(data[i]):
-                    valid_start = data[i]
-                    break
-            for i in range(-1, -len(data) - 1, -1):
-                if self.__is_entry_valid(data[i]):
-                    valid_end = data[i]
-                    break
             start_index = valid_start[2] if self.log_type == 'sent' else valid_start[3]
             end_index = valid_end[2] if self.log_type == 'sent' else valid_end[3]
         else:
